@@ -75,7 +75,7 @@ class TestAWSAuthConnection(unittest.TestCase):
 
         response = self.conn.get(bucket_name, key)
         self.assertEquals(response.http_response.status, 200, 'get object')
-        self.assertEquals(response.object.data, text, 'got right data')
+        self.assertEquals(response.object.data.read(), text, 'got right data')
         self.assertEquals(response.object.metadata, {'title': 'title'},
                 'metadata is correct')
         self.assertEquals(int(response.http_response.getheader(
@@ -142,7 +142,7 @@ class TestAWSAuthConnection(unittest.TestCase):
         response = self.conn.get_acl(bucket_name, key)
         self.assertEquals(response.http_response.status, 200, 'get acl')
 
-        acl = response.object.data
+        acl = response.object.data.read()
 
         response = self.conn.put_acl(bucket_name, key, acl)
         self.assertEquals(response.http_response.status, 200, 'put acl')
@@ -150,7 +150,7 @@ class TestAWSAuthConnection(unittest.TestCase):
         response = self.conn.get_bucket_acl(bucket_name)
         self.assertEquals(response.http_response.status, 200, 'get bucket acl')
 
-        bucket_acl = response.object.data
+        bucket_acl = response.object.data.read()
 
         response = self.conn.put_bucket_acl(bucket_name, bucket_acl)
         self.assertEquals(response.http_response.status, 200, 'put bucket acl')
@@ -159,7 +159,7 @@ class TestAWSAuthConnection(unittest.TestCase):
         self.assertEquals(response.http_response.status, 200,
                 'get bucket logging')
 
-        bucket_logging = response.object.data
+        bucket_logging = response.object.data.read()
 
         response = self.conn.put_bucket_acl(bucket_name, bucket_logging)
         self.assertEquals(response.http_response.status, 200,

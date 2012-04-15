@@ -1,4 +1,4 @@
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 __author__ = 'Jacob Sondergaard'
 __url__ = 'http://bitbucket.org/nephics/python-s3'
 __doc__ = '''

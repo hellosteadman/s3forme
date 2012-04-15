@@ -15,16 +15,21 @@ import base64
 import hmac
 import httplib
 import sha
+import tempfile
 import time
 import urllib
 import urlparse
 import xml.sax
+
+from cStringIO import StringIO
 
 
 DEFAULT_HOST = 's3.amazonaws.com'
 PORTS_BY_SECURITY = {True: 443, False: 80}
 METADATA_PREFIX = 'x-amz-meta-'
 AMAZON_HEADER_PREFIX = 'x-amz-'
+MAX_MEM_FILE_SIZE = 16 * 1024  # body size over this limit is spooled to disc
+CHUNK_SIZE = MAX_MEM_FILE_SIZE // 2
 
 
 # generates the aws canonical string for the given parameters
@@ -175,7 +180,7 @@ class AWSAuthConnection(object):
         else:
             body = ('<CreateBucketConfiguration '
                     'xmlns="http://s3.amazonaws.com/doc/2006-03-01/">\n'
-                    '  <LocationConstraint>' + location + 
+                    '  <LocationConstraint>' + location +
                     '</LocationConstraint>\n</CreateBucketConfiguration>')
         return Response(self._make_request('PUT', bucket, '', {}, headers,
                 body))
@@ -471,11 +476,24 @@ class Bucket(object):
 class Response(object):
     def __init__(self, http_response):
         self.http_response = http_response
-        # you have to do this read, even if you don't expect a body.
+        # We have to read the full response, even if we don't expect a body,
         # otherwise, the next request fails.
-        self.body = http_response.read()
-        if http_response.status >= 300 and self.body:
-            self.message = self.body
+        if http_response.getheader('Content-Length') > MAX_MEM_FILE_SIZE:
+            self.body = tempfile.TemporaryFile(bufsize=CHUNK_SIZE)
+        else:
+            self.body = StringIO()
+        while True:
+            chunk = http_response.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            self.body.write(chunk)
+        self.body.seek(0)
+
+        if (http_response.status >= 300 and
+            http_response.getheader('Content-Length') > 0):
+            # read the error message (it should be small)
+            self.message = self.body.read()
+            self.body.seek(0)
         else:
             self.message = "%03d %s" % (http_response.status,
                     http_response.reason)
@@ -487,7 +505,7 @@ class ListBucketResponse(Response):
 
         if http_response.status < 300:
             handler = ListBucketHandler()
-            xml.sax.parseString(self.body, handler)
+            xml.sax.parseString(self.body.read(), handler)
             self.entries = handler.entries
             self.common_prefixes = handler.common_prefixes
             self.name = handler.name
@@ -508,7 +526,7 @@ class ListAllMyBucketsResponse(Response):
 
         if http_response.status < 300:
             handler = ListAllMyBucketsHandler()
-            xml.sax.parseString(self.body, handler)
+            xml.sax.parseString(self.body.read(), handler)
             self.entries = handler.entries
         else:
             self.entries = []
@@ -540,7 +558,7 @@ class LocationResponse(Response):
 
         if http_response.status < 300:
             handler = LocationHandler()
-            xml.sax.parseString(self.body, handler)
+            xml.sax.parseString(self.body.read(), handler)
             self.location = handler.location
 
 

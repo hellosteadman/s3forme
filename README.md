@@ -46,29 +46,29 @@ None other than the standard libraries.
 
 ## Limitations
 
-One of the main limitations of these sample AWSAuthConnection implementations
-is that the interfaces are not streaming.  This means that you have to pass the
-data in as a string or as a byte array and the operation returns a string or a
-byte array back.  This is conceptually simpler, and fine for smaller objects,
-but large objects, say a couple megabytes or greater, will show poor
-performance, since everything is being passed around in memory.  More
-sophisticated libraries would pass streams in and out, and would only read the
-data on-demand, rather than storing it all in memory (S3 itself would have no
-problem with such streaming applications).  Another upshot of this is that the
-interfaces are all blocking---that is, you cannot look at the data until all of
-it has downloaded.  Again, this is fine for smaller objects, but unacceptable
-for larger ones.
+A previous limitation of the AWSAuthConnection implementation was that
+the request response was stored as a byte array in memory. This was
+fine for smaller objects, but large objects, say a couple megabytes or
+greater, will show poor performance, since everything is being passed
+around in memory.  With version 0.2.0 this has changed: Response sizes
+over a predefined limit is now automatically spooled to a temporary
+file. This implies that data of an S3Object is available via a file like
+interface (not as a byte string as in previous versions).
 
-These libraries have nearly non-existent error handling.  All errors from lower
-libraries are simply passed up.  The response code in the connection object needs
-to be checked after each request to verify whether the request succeeded.
+The AWSAuthConnection requests are all blocking - that is, the request
+will continue until all response data is downloaded, and you cannot look
+at the request is complete.
 
-Only the java library has proper handling for repeated headers.  The others
-assume that each header will have only one value.
+There is very little error handling. All errors from lower libraries are
+simply passed up. The response code in the connection object needs to be
+checked after each request to verify whether the request succeeded.
 
-It is our intention that these libraries act as a starting point for future
-development.  They are meant to show off the various operations and provide an
-example of how to negotiate the authentication process.
+There is no support for repeated headers, it is assumed that each header
+will have only one value.
+
+It is our intention that these libraries act as a starting point for
+future development.  They are meant to show off the various operations
+and provide an example of how to negotiate the authentication process.
 
 
 ## License
