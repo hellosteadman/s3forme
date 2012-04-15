@@ -51,9 +51,9 @@ the request response was stored as a byte array in memory. This was
 fine for smaller objects, but large objects, say a couple megabytes or
 greater, will show poor performance, since everything is being passed
 around in memory.  With version 0.2.0 this has changed: Response sizes
-over a predefined limit is now automatically spooled to a temporary
-file. This implies that data of an S3Object is available via a file like
-interface (not as a byte string as in previous versions).
+over a predefined limit are now (by default) automatically spooled to a
+temporary file. This implies that data of an S3Object is available via a
+file like interface (not as a byte string as in previous versions).
 
 The AWSAuthConnection requests are all blocking - that is, the request
 will continue until all response data is downloaded, and you cannot look

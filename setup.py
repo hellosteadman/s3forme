@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='python-s3',
-    version='0.2.0',
+    version='0.2.1',
     author='Jacob Sondergaard',
     author_email='jacob@nehics.com',
     packages=['s3'],

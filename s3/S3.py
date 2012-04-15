@@ -28,8 +28,7 @@ DEFAULT_HOST = 's3.amazonaws.com'
 PORTS_BY_SECURITY = {True: 443, False: 80}
 METADATA_PREFIX = 'x-amz-meta-'
 AMAZON_HEADER_PREFIX = 'x-amz-'
-MAX_MEM_FILE_SIZE = 16 * 1024  # body size over this limit is spooled to disc
-CHUNK_SIZE = MAX_MEM_FILE_SIZE // 2
+MAX_MEM_FILE_SIZE = 32 * 1024  # body size over this limit is spooled to disc
 
 
 # generates the aws canonical string for the given parameters
@@ -158,7 +157,8 @@ class AWSAuthConnection(object):
 
     def __init__(self, aws_access_key_id, aws_secret_access_key,
             is_secure=True, server=DEFAULT_HOST, port=None,
-            calling_format=CallingFormat.SUBDOMAIN):
+            calling_format=CallingFormat.SUBDOMAIN,
+            spool_size=MAX_MEM_FILE_SIZE):
 
         if not port:
             port = PORTS_BY_SECURITY[is_secure]
@@ -169,6 +169,7 @@ class AWSAuthConnection(object):
         self.server = server
         self.port = port
         self.calling_format = calling_format
+        self.spool_size = spool_size
 
     def create_bucket(self, bucket, headers=None):
         return Response(self._make_request('PUT', bucket, '', {}, headers))
@@ -202,7 +203,8 @@ class AWSAuthConnection(object):
                     object.data, object.metadata))
 
     def get(self, bucket, key, headers=None):
-        return GetResponse(self._make_request('GET', bucket, key, {}, headers))
+        return GetResponse(self._make_request('GET', bucket, key, {}, headers),
+                self.spool_size)
 
     def head(self, bucket, key, headers=None):
         return Response(self._make_request('HEAD', bucket, key, {}, headers))
@@ -474,24 +476,30 @@ class Bucket(object):
 
 
 class Response(object):
-    def __init__(self, http_response):
-        self.http_response = http_response
+    def __init__(self, http_response, spool_size=MAX_MEM_FILE_SIZE):
         # We have to read the full response, even if we don't expect a body,
-        # otherwise, the next request fails.
-        if http_response.getheader('Content-Length') > MAX_MEM_FILE_SIZE:
-            self.body = tempfile.TemporaryFile(bufsize=CHUNK_SIZE)
-        else:
-            self.body = StringIO()
-        while True:
-            chunk = http_response.read(CHUNK_SIZE)
-            if not chunk:
-                break
-            self.body.write(chunk)
-        self.body.seek(0)
+        # otherwise, the next request fails. The user may choose to do this,
+        # use the automatic disc/memory buffering.
+        chunk_size =  max(spool_size, MAX_MEM_FILE_SIZE) // 2
+        self.http_response = http_response
+        if spool_size > 0:
+            # automatic disc/mem buffering of response
+            if http_response.getheader('Content-Length') > spool_size:
+                self.body = tempfile.TemporaryFile(bufsize=chunk_size)
+            else:
+                self.body = StringIO()
+            while True:
+                chunk = http_response.read(chunk_size)
+                if not chunk:
+                    break
+                self.body.write(chunk)
+            self.body.seek(0)
 
-        if (http_response.status >= 300 and
-            http_response.getheader('Content-Length') > 0):
-            # read the error message (it should be small)
+        if http_response.status >= 300:
+            # read the error message into a StringIO (it should be small)
+            if (spool_size < 0 or http_response.getheader('Content-Length') >
+                    spool_size):
+                self.body = StringIO(self.body.read())
             self.message = self.body.read()
             self.body.seek(0)
         else:
@@ -534,8 +542,8 @@ class ListAllMyBucketsResponse(Response):
 
 class GetResponse(Response):
 
-    def __init__(self, http_response):
-        Response.__init__(self, http_response)
+    def __init__(self, http_response, spool_size=MAX_MEM_FILE_SIZE):
+        Response.__init__(self, http_response, spool_size)
 
         # older pythons don't have getheaders
         response_headers = http_response.msg
