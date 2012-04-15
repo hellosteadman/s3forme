@@ -494,6 +494,8 @@ class Response(object):
                     break
                 self.body.write(chunk)
             self.body.seek(0)
+        else:
+            self.body = http_response
 
         if http_response.status >= 300:
             # read the error message into a StringIO (it should be small)
