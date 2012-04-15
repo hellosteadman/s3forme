@@ -73,7 +73,7 @@ def canonical_string(method, bucket="", key="", query_args=None, headers=None,
 
     # handle special query string arguments
 
-    if "acl" in query_args.has_key:
+    if "acl" in query_args:
         buf += "?acl"
     elif "torrent" in query_args:
         buf += "?torrent"
@@ -87,8 +87,8 @@ def canonical_string(method, bucket="", key="", query_args=None, headers=None,
 
 # computes the base64'ed hmac-sha hash of the canonical string and the secret
 # access key, optionally urlencoding the result
-def encode(aws_secret_access_key, str, urlencode=False):
-    b64_hmac = base64.encodestring(hmac.new(aws_secret_access_key, str,
+def encode(aws_secret_access_key, string, urlencode=False):
+    b64_hmac = base64.encodestring(hmac.new(str(aws_secret_access_key), string,
             sha).digest()).strip()
     if urlencode:
         return urllib.quote_plus(b64_hmac)
@@ -173,9 +173,10 @@ class AWSAuthConnection(object):
         if location == Location.DEFAULT:
             body = ""
         else:
-            body = "<CreateBucketConstraint><LocationConstraint>" + \
-                   location + \
-                   "</LocationConstraint></CreateBucketConstraint>"
+            body = ('<CreateBucketConfiguration '
+                    'xmlns="http://s3.amazonaws.com/doc/2006-03-01/">\n'
+                    '  <LocationConstraint>' + location + 
+                    '</LocationConstraint>\n</CreateBucketConfiguration>')
         return Response(self._make_request('PUT', bucket, '', {}, headers,
                 body))
 
@@ -290,8 +291,8 @@ class AWSAuthConnection(object):
                 return resp
             # (close connection)
             resp.read()
-            scheme, host, path, params, query, fragment \
-                    = urlparse.urlparse(location)
+            scheme, host, path, params, query, fragment = (
+                    urlparse.urlparse(location))
             if scheme == "http":
                 is_secure = True
             elif scheme == "https":
