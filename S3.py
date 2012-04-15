@@ -369,6 +369,9 @@ class QueryStringAuthGenerator(object):
     def get(self, bucket, key, headers=None):
         return self.generate_url('GET', bucket, key, {}, headers)
 
+    def head(self, bucket, key, headers=None):
+        return self.generate_url('HEAD', bucket, key, {}, headers)
+
     def delete(self, bucket, key, headers=None):
         return self.generate_url('DELETE', bucket, key, {}, headers)
 
