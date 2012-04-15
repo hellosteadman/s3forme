@@ -499,7 +499,7 @@ class Response(object):
 
         if http_response.status >= 300:
             # read the error message into a StringIO (it should be small)
-            if (spool_size < 0 or http_response.getheader('Content-Length') >
+            if (spool_size <= 0 or http_response.getheader('Content-Length') >
                     spool_size):
                 self.body = StringIO(self.body.read())
             self.message = self.body.read()
