@@ -9,7 +9,7 @@
 #  this software code. (c) 2006-2007 Amazon Digital Services, Inc. or its
 #  affiliates.
 
-import S3
+import s3
 import time
 import sys
 
@@ -24,8 +24,8 @@ sys.exit();
 BUCKET_NAME = AWS_ACCESS_KEY_ID.lower() + '-test-bucket'
 KEY_NAME = 'test-key'
 
-conn = S3.AWSAuthConnection(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-generator = S3.QueryStringAuthGenerator(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+conn = s3.AWSAuthConnection(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+generator = s3.QueryStringAuthGenerator(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
 
 
 # Check if the bucket exists.  The high availability engineering of 
@@ -39,9 +39,9 @@ if (conn.check_bucket_exists(BUCKET_NAME).status == 200):
   print '----- bucket already exists! -----'
 else:
   print '----- creating bucket -----'
-  print conn.create_located_bucket(BUCKET_NAME, S3.Location.DEFAULT).message
+  print conn.create_located_bucket(BUCKET_NAME, s3.Location.DEFAULT).message
   # to create an EU bucket
-  #print conn.create_located_bucket(BUCKET_NAME, S3.Location.EU).message
+  #print conn.create_located_bucket(BUCKET_NAME, s3.Location.EU).message
 
 print '----- bucket location -----'
 print conn.get_bucket_location(BUCKET_NAME).location
@@ -53,7 +53,7 @@ print '----- putting object (with content type) -----'
 print conn.put(
         BUCKET_NAME,
         KEY_NAME,
-        S3.S3Object('this is a test'),
+        s3.S3Object('this is a test'),
         { 'Content-Type': 'text/plain' }).message
 
 print '----- listing bucket -----'
@@ -80,7 +80,7 @@ print '----- putting object with metadata and public read acl -----'
 print conn.put(
     BUCKET_NAME,
     KEY_NAME + '-public',
-    S3.S3Object('this is a publicly readable test'),
+    s3.S3Object('this is a publicly readable test'),
     { 'x-amz-acl': 'public-read' , 'Content-Type': 'text/plain' }
 ).message
 
@@ -97,7 +97,7 @@ print conn.get_acl(BUCKET_NAME, KEY_NAME).object.data
 print "\n----- path style url example -----";
 print "Non-location-constrained buckets can also be specified as part of the url path.  (This was the original url style supported by S3.)\n";
 print "Try this url out in your browser (it will only be valid for 60 seconds).\n"
-generator.calling_format = S3.CallingFormat.PATH
+generator.calling_format = s3.CallingFormat.PATH
 url = generator.get(BUCKET_NAME, KEY_NAME)
 print url
 print "\npress enter> ",

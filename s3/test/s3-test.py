@@ -10,7 +10,7 @@
 # affiliates.
 
 import unittest
-import S3
+import s3
 import httplib
 import sys
 
