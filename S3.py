@@ -9,40 +9,44 @@
 #  this software code. (c) 2006-2007 Amazon Digital Services, Inc. or its
 #  affiliates.
 
-#  modified 2011 by jacob@nephics.com
+#  modified 2012 by jacob@nephics.com
 
 import base64
 import hmac
 import httplib
-import re
 import sha
-import sys
 import time
 import urllib
 import urlparse
 import xml.sax
 
+
 DEFAULT_HOST = 's3.amazonaws.com'
-PORTS_BY_SECURITY = { True: 443, False: 80 }
+PORTS_BY_SECURITY = {True: 443, False: 80}
 METADATA_PREFIX = 'x-amz-meta-'
 AMAZON_HEADER_PREFIX = 'x-amz-'
 
+
 # generates the aws canonical string for the given parameters
-def canonical_string(method, bucket="", key="", query_args={}, headers={}, expires=None):
+def canonical_string(method, bucket="", key="", query_args=None, headers=None,
+        expires=None):
+    query_args = {} if query_args is None else query_args
+    headers = {} if headers is None else headers
     interesting_headers = {}
     for header_key in headers:
         lk = header_key.lower()
-        if lk in ['content-md5', 'content-type', 'date'] or lk.startswith(AMAZON_HEADER_PREFIX):
+        if (lk in ['content-md5', 'content-type', 'date'] or
+                lk.startswith(AMAZON_HEADER_PREFIX)):
             interesting_headers[lk] = headers[header_key].strip()
 
     # these keys get empty strings if they don't exist
-    if not interesting_headers.has_key('content-type'):
+    if 'content-type' not in interesting_headers:
         interesting_headers['content-type'] = ''
-    if not interesting_headers.has_key('content-md5'):
+    if 'content-md5' not in interesting_headers:
         interesting_headers['content-md5'] = ''
 
     # just in case someone used this.  it's not necessary in this lib.
-    if interesting_headers.has_key('x-amz-date'):
+    if 'x-amz-date' in interesting_headers:
         interesting_headers['date'] = ''
 
     # if you're using expires for query string auth, then it trumps date
@@ -69,25 +73,28 @@ def canonical_string(method, bucket="", key="", query_args={}, headers={}, expir
 
     # handle special query string arguments
 
-    if query_args.has_key("acl"):
+    if "acl" in query_args.has_key:
         buf += "?acl"
-    elif query_args.has_key("torrent"):
+    elif "torrent" in query_args:
         buf += "?torrent"
-    elif query_args.has_key("logging"):
+    elif "logging" in query_args:
         buf += "?logging"
-    elif query_args.has_key("location"):
+    elif "location" in query_args:
         buf += "?location"
 
     return buf
 
+
 # computes the base64'ed hmac-sha hash of the canonical string and the secret
 # access key, optionally urlencoding the result
 def encode(aws_secret_access_key, str, urlencode=False):
-    b64_hmac = base64.encodestring(hmac.new(aws_secret_access_key, str, sha).digest()).strip()
+    b64_hmac = base64.encodestring(hmac.new(aws_secret_access_key, str,
+            sha).digest()).strip()
     if urlencode:
         return urllib.quote_plus(b64_hmac)
     else:
         return b64_hmac
+
 
 def merge_meta(headers, metadata):
     final_headers = headers.copy()
@@ -96,9 +103,9 @@ def merge_meta(headers, metadata):
 
     return final_headers
 
+
 # builds the query arg string
 def query_args_hash_to_string(query_args):
-    query_string = ""
     pairs = []
     for k, v in query_args.items():
         piece = k
@@ -109,7 +116,8 @@ def query_args_hash_to_string(query_args):
     return '&'.join(pairs)
 
 
-class CallingFormat:
+class CallingFormat(object):
+
     PATH = 1
     SUBDOMAIN = 2
     VANITY = 3
@@ -136,16 +144,16 @@ class CallingFormat:
     build_url_base = staticmethod(build_url_base)
 
 
-
-class Location:
+class Location(object):
     DEFAULT = None
     EU = 'EU'
 
 
+class AWSAuthConnection(object):
 
-class AWSAuthConnection:
-    def __init__(self, aws_access_key_id, aws_secret_access_key, is_secure=True,
-            server=DEFAULT_HOST, port=None, calling_format=CallingFormat.SUBDOMAIN):
+    def __init__(self, aws_access_key_id, aws_secret_access_key,
+            is_secure=True, server=DEFAULT_HOST, port=None,
+            calling_format=CallingFormat.SUBDOMAIN):
 
         if not port:
             port = PORTS_BY_SECURITY[is_secure]
@@ -157,88 +165,82 @@ class AWSAuthConnection:
         self.port = port
         self.calling_format = calling_format
 
-    def create_bucket(self, bucket, headers={}):
+    def create_bucket(self, bucket, headers=None):
         return Response(self._make_request('PUT', bucket, '', {}, headers))
 
-    def create_located_bucket(self, bucket, location=Location.DEFAULT, headers={}):
+    def create_located_bucket(self, bucket, location=Location.DEFAULT,
+            headers=None):
         if location == Location.DEFAULT:
             body = ""
         else:
             body = "<CreateBucketConstraint><LocationConstraint>" + \
                    location + \
                    "</LocationConstraint></CreateBucketConstraint>"
-        return Response(self._make_request('PUT', bucket, '', {}, headers, body))
+        return Response(self._make_request('PUT', bucket, '', {}, headers,
+                body))
 
     def check_bucket_exists(self, bucket):
         return self._make_request('HEAD', bucket, '', {}, {})
 
-    def list_bucket(self, bucket, options={}, headers={}):
-        return ListBucketResponse(self._make_request('GET', bucket, '', options, headers))
+    def list_bucket(self, bucket, options=None, headers=None):
+        return ListBucketResponse(self._make_request('GET', bucket, '',
+                options, headers))
 
-    def delete_bucket(self, bucket, headers={}):
+    def delete_bucket(self, bucket, headers=None):
         return Response(self._make_request('DELETE', bucket, '', {}, headers))
 
-    def put(self, bucket, key, object, headers={}):
+    def put(self, bucket, key, object, headers=None):
         if not isinstance(object, S3Object):
             object = S3Object(object)
+        return Response(self._make_request('PUT', bucket, key, {}, headers,
+                    object.data, object.metadata))
 
-        return Response(
-                self._make_request(
-                    'PUT',
-                    bucket,
-                    key,
-                    {},
-                    headers,
-                    object.data,
-                    object.metadata))
+    def get(self, bucket, key, headers=None):
+        return GetResponse(self._make_request('GET', bucket, key, {}, headers))
 
-    def get(self, bucket, key, headers={}):
-        return GetResponse(
-                self._make_request('GET', bucket, key, {}, headers))
+    def head(self, bucket, key, headers=None):
+        return Response(self._make_request('HEAD', bucket, key, {}, headers))
 
-    def head(self, bucket, key, headers={}):
-        return Response(
-                self._make_request('HEAD', bucket, key, {}, headers))
-                
-    def delete(self, bucket, key, headers={}):
-        return Response(
-                self._make_request('DELETE', bucket, key, {}, headers))
+    def delete(self, bucket, key, headers=None):
+        return Response(self._make_request('DELETE', bucket, key, {}, headers))
 
-    def get_bucket_logging(self, bucket, headers={}):
-        return GetResponse(self._make_request('GET', bucket, '', { 'logging': None }, headers))
+    def get_bucket_logging(self, bucket, headers=None):
+        return GetResponse(self._make_request('GET', bucket, '',
+                {'logging': None}, headers))
 
-    def put_bucket_logging(self, bucket, logging_xml_doc, headers={}):
-        return Response(self._make_request('PUT', bucket, '', { 'logging': None }, headers, logging_xml_doc))
+    def put_bucket_logging(self, bucket, logging_xml_doc, headers=None):
+        return Response(self._make_request('PUT', bucket, '',
+                {'logging': None}, headers, logging_xml_doc))
 
-    def get_bucket_acl(self, bucket, headers={}):
+    def get_bucket_acl(self, bucket, headers=None):
         return self.get_acl(bucket, '', headers)
 
-    def get_acl(self, bucket, key, headers={}):
-        return GetResponse(
-                self._make_request('GET', bucket, key, { 'acl': None }, headers))
+    def get_acl(self, bucket, key, headers=None):
+        return GetResponse(self._make_request('GET', bucket, key,
+                {'acl': None}, headers))
 
-    def put_bucket_acl(self, bucket, acl_xml_document, headers={}):
+    def put_bucket_acl(self, bucket, acl_xml_document, headers=None):
         return self.put_acl(bucket, '', acl_xml_document, headers)
 
-    def put_acl(self, bucket, key, acl_xml_document, headers={}):
-        return Response(
-                self._make_request(
-                    'PUT',
-                    bucket,
-                    key,
-                    { 'acl': None },
-                    headers,
-                    acl_xml_document))
+    def put_acl(self, bucket, key, acl_xml_document, headers=None):
+        return Response(self._make_request('PUT', bucket, key, {'acl': None},
+                    headers, acl_xml_document))
 
-    def list_all_my_buckets(self, headers={}):
-        return ListAllMyBucketsResponse(self._make_request('GET', '', '', {}, headers))
+    def list_all_my_buckets(self, headers=None):
+        return ListAllMyBucketsResponse(self._make_request('GET', '', '', {},
+                headers))
 
     def get_bucket_location(self, bucket):
-        return LocationResponse(self._make_request('GET', bucket, '', {'location' : None}))
+        return LocationResponse(self._make_request('GET', bucket, '',
+                {'location': None}))
 
     # end public methods
 
-    def _make_request(self, method, bucket='', key='', query_args={}, headers={}, data='', metadata={}):
+    def _make_request(self, method, bucket='', key='', query_args=None,
+            headers=None, data='', metadata=None):
+        query_args = {} if query_args is None else query_args
+        headers = {} if headers is None else headers
+        metadata = {} if metadata is None else metadata
 
         server = ''
         if bucket == '':
@@ -259,9 +261,8 @@ class AWSAuthConnection:
         # the key will be appended if it is non-empty
         path += "/%s" % urllib.quote_plus(key)
 
-
         # build the path_argument string
-        # add the ? in all cases since 
+        # add the ? in all cases since
         # signature and credentials follow path args
         if len(query_args):
             path += "?" + query_args_hash_to_string(query_args)
@@ -274,9 +275,10 @@ class AWSAuthConnection:
             else:
                 connection = httplib.HTTPConnection(host)
 
-            final_headers = merge_meta(headers, metadata);
+            final_headers = merge_meta(headers, metadata)
             # add auth header
-            self._add_aws_auth_header(final_headers, method, bucket, key, query_args)
+            self._add_aws_auth_header(final_headers, method, bucket, key,
+                    query_args)
 
             connection.request(method, path, data, final_headers)
             resp = connection.getresponse()
@@ -290,27 +292,35 @@ class AWSAuthConnection:
             resp.read()
             scheme, host, path, params, query, fragment \
                     = urlparse.urlparse(location)
-            if scheme == "http":    is_secure = True
-            elif scheme == "https": is_secure = False
-            else: raise invalidURL("Not http/https: " + location)
-            if query: path += "?" + query
+            if scheme == "http":
+                is_secure = True
+            elif scheme == "https":
+                is_secure = False
+            else:
+                raise RuntimeError("Invalid redirection URL, not http/https: "
+                        + location)
+            if query:
+                path += "?" + query
             # retry with redirect
 
     def _add_aws_auth_header(self, headers, method, bucket, key, query_args):
-        if not headers.has_key('Date'):
-            headers['Date'] = time.strftime("%a, %d %b %Y %X GMT", time.gmtime())
+        if 'Date' not in headers:
+            headers['Date'] = time.strftime("%a, %d %b %Y %X GMT",
+                    time.gmtime())
 
         c_string = canonical_string(method, bucket, key, query_args, headers)
-        headers['Authorization'] = \
-            "AWS %s:%s" % (self.aws_access_key_id, encode(self.aws_secret_access_key, c_string))
+        headers['Authorization'] = "AWS %s:%s" % (self.aws_access_key_id,
+                encode(self.aws_secret_access_key, c_string))
 
 
-class QueryStringAuthGenerator:
+class QueryStringAuthGenerator(object):
+
     # by default, expire in 1 minute
     DEFAULT_EXPIRES_IN = 60
 
-    def __init__(self, aws_access_key_id, aws_secret_access_key, is_secure=True,
-                 server=DEFAULT_HOST, port=None, calling_format=CallingFormat.SUBDOMAIN):
+    def __init__(self, aws_access_key_id, aws_secret_access_key,
+            is_secure=True, server=DEFAULT_HOST, port=None,
+            calling_format=CallingFormat.SUBDOMAIN):
 
         if not port:
             port = PORTS_BY_SECURITY[is_secure]
@@ -340,59 +350,60 @@ class QueryStringAuthGenerator:
         self.__expires = expires
         self.__expires_in = None
 
-    def create_bucket(self, bucket, headers={}):
+    def create_bucket(self, bucket, headers=None):
         return self.generate_url('PUT', bucket, '', {}, headers)
 
-    def list_bucket(self, bucket, options={}, headers={}):
+    def list_bucket(self, bucket, options=None, headers=None):
         return self.generate_url('GET', bucket, '', options, headers)
 
-    def delete_bucket(self, bucket, headers={}):
+    def delete_bucket(self, bucket, headers=None):
         return self.generate_url('DELETE', bucket, '', {}, headers)
 
-    def put(self, bucket, key, object, headers={}):
+    def put(self, bucket, key, object, headers=None):
+        headers = {} if headers is None else headers
         if not isinstance(object, S3Object):
             object = S3Object(object)
+        return self.generate_url('PUT', bucket, key, {}, merge_meta(headers,
+                object.metadata))
 
-        return self.generate_url(
-                'PUT',
-                bucket,
-                key,
-                {},
-                merge_meta(headers, object.metadata))
-
-    def get(self, bucket, key, headers={}):
+    def get(self, bucket, key, headers=None):
         return self.generate_url('GET', bucket, key, {}, headers)
 
-    def delete(self, bucket, key, headers={}):
+    def delete(self, bucket, key, headers=None):
         return self.generate_url('DELETE', bucket, key, {}, headers)
 
-    def get_bucket_logging(self, bucket, headers={}):
-        return self.generate_url('GET', bucket, '', { 'logging': None }, headers)
+    def get_bucket_logging(self, bucket, headers=None):
+        return self.generate_url('GET', bucket, '', {'logging': None},
+                headers)
 
-    def put_bucket_logging(self, bucket, logging_xml_doc, headers={}):
-        return self.generate_url('PUT', bucket, '', { 'logging': None }, headers)
+    def put_bucket_logging(self, bucket, logging_xml_doc, headers=None):
+        return self.generate_url('PUT', bucket, '', {'logging': None},
+                headers)
 
-    def get_bucket_acl(self, bucket, headers={}):
+    def get_bucket_acl(self, bucket, headers=None):
         return self.get_acl(bucket, '', headers)
 
-    def get_acl(self, bucket, key='', headers={}):
-        return self.generate_url('GET', bucket, key, { 'acl': None }, headers)
+    def get_acl(self, bucket, key='', headers=None):
+        return self.generate_url('GET', bucket, key, {'acl': None}, headers)
 
-    def put_bucket_acl(self, bucket, acl_xml_document, headers={}):
+    def put_bucket_acl(self, bucket, acl_xml_document, headers=None):
         return self.put_acl(bucket, '', acl_xml_document, headers)
 
     # don't really care what the doc is here.
-    def put_acl(self, bucket, key, acl_xml_document, headers={}):
-        return self.generate_url('PUT', bucket, key, { 'acl': None }, headers)
+    def put_acl(self, bucket, key, acl_xml_document, headers=None):
+        return self.generate_url('PUT', bucket, key, {'acl': None}, headers)
 
-    def list_all_my_buckets(self, headers={}):
+    def list_all_my_buckets(self, headers=None):
         return self.generate_url('GET', '', '', {}, headers)
 
     def make_bare_url(self, bucket, key=''):
         full_url = self.generate_url(self, bucket, key)
         return full_url[:full_url.index('?')]
 
-    def generate_url(self, method, bucket='', key='', query_args={}, headers={}):
+    def generate_url(self, method, bucket='', key='', query_args=None,
+            headers=None):
+        query_args = {} if query_args is None else query_args
+        headers = {} if headers is None else headers
         expires = 0
         if self.__expires_in != None:
             expires = int(time.time() + self.__expires_in)
@@ -401,10 +412,12 @@ class QueryStringAuthGenerator:
         else:
             raise "Invalid expires state"
 
-        canonical_str = canonical_string(method, bucket, key, query_args, headers, expires)
+        canonical_str = canonical_string(method, bucket, key, query_args,
+                headers, expires)
         encoded_canonical = encode(self.aws_secret_access_key, canonical_str)
 
-        url = CallingFormat.build_url_base(self.protocol, self.server, self.port, bucket, self.calling_format)
+        url = CallingFormat.build_url_base(self.protocol, self.server,
+                self.port, bucket, self.calling_format)
 
         url += "/%s" % urllib.quote_plus(key)
 
@@ -417,18 +430,21 @@ class QueryStringAuthGenerator:
         return url
 
 
-class S3Object:
-    def __init__(self, data, metadata={}):
+class S3Object(object):
+    def __init__(self, data, metadata=None):
         self.data = data
-        self.metadata = metadata
+        self.metadata = {} if metadata is None else metadata
 
-class Owner:
+
+class Owner(object):
     def __init__(self, id='', display_name=''):
         self.id = id
         self.display_name = display_name
 
-class ListEntry:
-    def __init__(self, key='', last_modified=None, etag='', size=0, storage_class='', owner=None):
+
+class ListEntry(object):
+    def __init__(self, key='', last_modified=None, etag='', size=0,
+            storage_class='', owner=None):
         self.key = key
         self.last_modified = last_modified
         self.etag = etag
@@ -436,16 +452,19 @@ class ListEntry:
         self.storage_class = storage_class
         self.owner = owner
 
-class CommonPrefixEntry:
+
+class CommonPrefixEntry(object):
     def __init(self, prefix=''):
         self.prefix = prefix
 
-class Bucket:
+
+class Bucket(object):
     def __init__(self, name='', creation_date=''):
         self.name = name
         self.creation_date = creation_date
 
-class Response:
+
+class Response(object):
     def __init__(self, http_response):
         self.http_response = http_response
         # you have to do this read, even if you don't expect a body.
@@ -454,13 +473,14 @@ class Response:
         if http_response.status >= 300 and self.body:
             self.message = self.body
         else:
-            self.message = "%03d %s" % (http_response.status, http_response.reason)
-
+            self.message = "%03d %s" % (http_response.status,
+                    http_response.reason)
 
 
 class ListBucketResponse(Response):
     def __init__(self, http_response):
         Response.__init__(self, http_response)
+
         if http_response.status < 300:
             handler = ListBucketHandler()
             xml.sax.parseString(self.body, handler)
@@ -473,23 +493,30 @@ class ListBucketResponse(Response):
             self.delimiter = handler.delimiter
             self.max_keys = handler.max_keys
             self.next_marker = handler.next_marker
+
         else:
             self.entries = []
+
 
 class ListAllMyBucketsResponse(Response):
     def __init__(self, http_response):
         Response.__init__(self, http_response)
-        if http_response.status < 300: 
+
+        if http_response.status < 300:
             handler = ListAllMyBucketsHandler()
             xml.sax.parseString(self.body, handler)
             self.entries = handler.entries
         else:
             self.entries = []
 
+
 class GetResponse(Response):
+
     def __init__(self, http_response):
         Response.__init__(self, http_response)
-        response_headers = http_response.msg   # older pythons don't have getheaders
+
+        # older pythons don't have getheaders
+        response_headers = http_response.msg
         metadata = self.get_aws_metadata(response_headers)
         self.object = S3Object(self.body, metadata)
 
@@ -502,15 +529,19 @@ class GetResponse(Response):
 
         return metadata
 
+
 class LocationResponse(Response):
     def __init__(self, http_response):
         Response.__init__(self, http_response)
-        if http_response.status < 300: 
+
+        if http_response.status < 300:
             handler = LocationHandler()
             xml.sax.parseString(self.body, handler)
             self.location = handler.location
 
+
 class ListBucketHandler(xml.sax.ContentHandler):
+
     def __init__(self):
         self.entries = []
         self.curr_entry = None
@@ -533,7 +564,6 @@ class ListBucketHandler(xml.sax.ContentHandler):
             self.curr_entry.owner = Owner()
         elif name == 'CommonPrefixes':
             self.curr_common_prefix = CommonPrefixEntry()
-
 
     def endElement(self, name):
         if name == 'Contents':
@@ -579,6 +609,7 @@ class ListBucketHandler(xml.sax.ContentHandler):
 
 
 class ListAllMyBucketsHandler(xml.sax.ContentHandler):
+
     def __init__(self):
         self.entries = []
         self.curr_entry = None
@@ -601,6 +632,7 @@ class ListAllMyBucketsHandler(xml.sax.ContentHandler):
 
 
 class LocationHandler(xml.sax.ContentHandler):
+
     def __init__(self):
         self.location = None
         self.state = 'init'
@@ -610,13 +642,16 @@ class LocationHandler(xml.sax.ContentHandler):
             if name == 'LocationConstraint':
                 self.state = 'tag_location'
                 self.location = ''
-            else: self.state = 'bad'
-        else: self.state = 'bad'
+            else:
+                self.state = 'bad'
+        else:
+            self.state = 'bad'
 
     def endElement(self, name):
         if self.state == 'tag_location' and name == 'LocationConstraint':
             self.state = 'done'
-        else: self.state = 'bad'
+        else:
+            self.state = 'bad'
 
     def characters(self, content):
         if self.state == 'tag_location':
