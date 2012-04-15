@@ -9,6 +9,8 @@
 #  this software code. (c) 2006-2007 Amazon Digital Services, Inc. or its
 #  affiliates.
 
+#  modified 2011 by jacob@nephics.com
+
 import base64
 import hmac
 import httplib
@@ -194,6 +196,10 @@ class AWSAuthConnection:
         return GetResponse(
                 self._make_request('GET', bucket, key, {}, headers))
 
+    def head(self, bucket, key, headers={}):
+        return Response(
+                self._make_request('HEAD', bucket, key, {}, headers))
+                
     def delete(self, bucket, key, headers={}):
         return Response(
                 self._make_request('DELETE', bucket, key, {}, headers))
