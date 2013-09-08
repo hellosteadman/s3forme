@@ -1,13 +1,13 @@
 from distutils.core import setup
 
 setup(
-    name='python-s3',
-    version='0.2.1',
-    author='Jacob Sondergaard',
-    author_email='jacob@nehics.com',
-    packages=['s3'],
-    url='http://bitbucket.org/nephics/python-s3/',
-    license='LICENSE.txt',
-    description='Python S3 client and query string generator.',
-    long_description=open('README.md').read()
+	name = 's3form3',
+	version = '0.1',
+	author = 'Mark Steadman',
+	author_email = 'marksteadman@me.com',
+	packages = ['s3forme'],
+	url = 'https://github.com/mrmarksteadman/s3forme',
+	license = 'LICENSE.txt',
+	description = 'Python S3for.me client and querystring generator.',
+	long_description = open('README.md').read()
 )

@@ -9,27 +9,24 @@
 #  this software code. (c) 2006-2007 Amazon Digital Services, Inc. or its
 #  affiliates.
 
-import s3
-import time
-import sys
+import s3forme, time, sys
 
-AWS_ACCESS_KEY_ID = '<INSERT YOUR AWS ACCESS KEY ID HERE>'
-AWS_SECRET_ACCESS_KEY = '<INSERT YOUR AWS SECRET ACCESS KEY HERE>'
+S3FM_ACCESS_KEY_ID = '<INSERT YOUR S3FOR.ME ACCESS KEY ID HERE>'
+S3FM_SECRET_ACCESS_KEY = '<INSERT YOUR S3FOR.ME SECRET ACCESS KEY HERE>'
 # remove these next two lines when you've updated your credentials.
-print "update s3-driver.py with your AWS credentials"
+print "update s3-driver.py with your S3for.me credentials"
 sys.exit();
 
 # convert the bucket to lowercase for vanity domains
 # the bucket name must be lowercase since DNS is case-insensitive
-BUCKET_NAME = AWS_ACCESS_KEY_ID.lower() + '-test-bucket'
+BUCKET_NAME = S3FM_ACCESS_KEY_ID.lower() + '-test-bucket'
 KEY_NAME = 'test-key'
 
-conn = s3.AWSAuthConnection(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-generator = s3.QueryStringAuthGenerator(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-
+conn = s3forme.S3fmAuthConnection(S3FM_ACCESS_KEY_ID, S3FM_SECRET_ACCESS_KEY)
+generator = s3forme.QueryStringAuthGenerator(S3FM_ACCESS_KEY_ID, S3FM_SECRET_ACCESS_KEY)
 
 # Check if the bucket exists.  The high availability engineering of 
-# Amazon S3 is focused on get, put, list, and delete operations. 
+# S3for.me is focused on GET, PUT, LIST, and DELETE operations. 
 # Because bucket operations work against a centralized, global
 # resource space, it is not appropriate to make bucket create or
 # delete calls on the high availability code path of your application.
@@ -51,10 +48,10 @@ print map(lambda x: x.key, conn.list_bucket(BUCKET_NAME).entries)
 
 print '----- putting object (with content type) -----'
 print conn.put(
-        BUCKET_NAME,
-        KEY_NAME,
-        s3.S3Object('this is a test'),
-        { 'Content-Type': 'text/plain' }).message
+		BUCKET_NAME,
+		KEY_NAME,
+		s3.S3Object('this is a test'),
+		{ 'Content-Type': 'text/plain' }).message
 
 print '----- listing bucket -----'
 print map(lambda x: x.key, conn.list_bucket(BUCKET_NAME).entries)
@@ -62,15 +59,15 @@ print map(lambda x: x.key, conn.list_bucket(BUCKET_NAME).entries)
 print '----- getting object -----'
 print conn.get(BUCKET_NAME, KEY_NAME).object.data
 
-print '----- query string auth example -----'
-print "\nTry this url out in your browser (it will only be valid for 60 seconds).\n"
+print '----- querystring auth example -----'
+print "\nTry this URL out in your browser (it will only be valid for 60 seconds).\n"
 generator.set_expires_in(60);
 url = generator.get(BUCKET_NAME, KEY_NAME)
 print url
 print '\npress enter> ',
 sys.stdin.readline()
 
-print "\nNow try just the url without the query string arguments.  it should fail.\n"
+print "\nNow try just the url without the querystring arguments.  it should fail.\n"
 print generator.make_bare_url(BUCKET_NAME, KEY_NAME)
 print '\npress enter> ',
 sys.stdin.readline()
@@ -78,10 +75,10 @@ sys.stdin.readline()
 
 print '----- putting object with metadata and public read acl -----'
 print conn.put(
-    BUCKET_NAME,
-    KEY_NAME + '-public',
-    s3.S3Object('this is a publicly readable test'),
-    { 'x-amz-acl': 'public-read' , 'Content-Type': 'text/plain' }
+	BUCKET_NAME,
+	KEY_NAME + '-public',
+	s3.S3Object('this is a publicly readable test'),
+	{ 'x-amz-acl': 'public-read' , 'Content-Type': 'text/plain' }
 ).message
 
 print '----- anonymous read test ----'
